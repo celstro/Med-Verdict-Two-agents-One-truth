@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Med-Verdict · AI Clinical Second Opinion Reconciler</title>
+<meta name="description" content="Two clinical AI agents. One patient. One reconcilable truth — reached through an auditable, hash-chained negotiation protocol. Omega AI Agents · Track 01: Two Agents, One Truth." />
+<meta name="theme-color" content="#002D6E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;450;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/theme.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 72'%3E%3Cpath d='M32 2 60 11v26c0 16-11 27-28 33C15 64 4 53 4 37V11z' fill='%23E8292B'/%3E%3Cpath d='M32 7 55 14.5v22.5c0 13-9 22-23 27.5C18 59 9 50 9 37V14.5z' fill='%23FFC72C'/%3E%3Cpath d='M32 16c4 0 7 2 8 6l5 26c1 5-1 9-6 9-4 0-6-3-7-7l-3-16-3 16c-1 4-3 7-7 7-5 0-7-4-6-9l5-26c1-4 4-6 8-6z' fill='%237A0C10'/%3E%3C/svg%3E" />
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<!-- ============================== SIGN-IN PORTAL ==============================
+     A real gate: the app below does not mount until this resolves. Google-only,
+     enforced by the mechanism (GIS cannot return another provider) plus an
+     optional domain allow-list in assets/js/auth.js. The offline path is
+     labelled as unverified in the UI, because it is not authentication. -->
+<div class="signin" id="authGate">
+  <div class="signin-card">
+    <div class="signin-shield" aria-hidden="true">
+      <svg viewBox="0 0 64 72" width="54" height="61">
+        <path d="M32 2 60 11v26c0 16-11 27-28 33C15 64 4 53 4 37V11z" fill="#C41E1E"/>
+        <path d="M32 7 55 14.5v22.5c0 13-9 22-23 27.5C18 59 9 50 9 37V14.5z" fill="#FFC72C"/>
+        <path d="M32 16c4 0 7 2 8 6l5 26c1 5-1 9-6 9-4 0-6-3-7-7l-3-16-3 16c-1 4-3 7-7 7-5 0-7-4-6-9l5-26c1-4 4-6 8-6z" fill="#8E0F12"/>
+      </svg>
+    </div>
+
+    <h1 class="signin-title">MED-VERDICT</h1>
+    <p class="signin-sub">AI Clinical Second Opinion Reconciler</p>
+    <p class="signin-lede">Sign in to run a reconciliation.</p>
+
+    <div class="signin-google" id="gisHost"></div>
+
+    <p class="signin-msg" id="authMsg" role="status" aria-live="polite"></p>
+
+    <div class="signin-fallback" id="gateFallback" hidden>
+      <button class="btn btn-hope btn-block" id="demoBtn">Continue in offline demo mode</button>
+      <p class="signin-warn">
+        <b>Demo mode is not authentication.</b> No Google client id is configured, or
+        <code>accounts.google.com</code> is unreachable. You can use everything; nothing
+        about your identity is verified.
+      </p>
+    </div>
+
+    <ul class="signin-facts">
+      <li><b>Google accounts only.</b> There is no password form and no second provider.</li>
+      <li><b>Your case files never leave this browser.</b> Sign-in talks to Google; the reconciliation engine talks to nothing.</li>
+      <li><b>Your identity is written into the sealed audit trail</b>, so a transcript records who asked and how they were identified.</li>
+    </ul>
+
+    <p class="signin-foot">Research prototype &middot; synthetic cases only &middot; not a medical device.</p>
+  </div>
+</div>
+
+<!-- ============================== GOV BAR ============================== -->
+<div class="govbar">
+  <div class="wrap govbar-in">
+    <span class="govbar-tag">RESEARCH PROTOTYPE</span>
+    <span class="govbar-txt">Synthetic case library. No real patient data. Not a medical device. Every claim is traceable to a cited rule.</span>
+  </div>
+</div>
+
+<!-- ============================== NAV ============================== -->
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="31" height="31"><rect width="40" height="40" rx="11" fill="#002D6E"/><g transform="translate(3.05,0.9) scale(0.53)"><path d="M32 2 60 11v26c0 16-11 27-28 33C15 64 4 53 4 37V11z" fill="#E8292B"/><path d="M32 7 55 14.5v22.5c0 13-9 22-23 27.5C18 59 9 50 9 37V14.5z" fill="#FFC72C"/><path d="M32 16c4 0 7 2 8 6l5 26c1 5-1 9-6 9-4 0-6-3-7-7l-3-16-3 16c-1 4-3 7-7 7-5 0-7-4-6-9l5-26c1-4 4-6 8-6z" fill="#7A0C10"/></g></svg>
+      </span>
+      <span class="brand-txt"><b>MED-VERDICT</b><i>AI Clinical Second Opinion Reconciler</i></span>
+    </a>
+    <nav class="nav-links" id="navLinks">
+      <a href="#console">Consoles</a>
+      <a href="#protocol">Protocol</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#track">Track fit</a>
+      <a href="#score">Scoring</a>
+      <a href="#submit">Submission</a>
+    </nav>
+    <a class="btn btn-hope btn-sm" href="#console">Run a case</a>
+    <div class="whoami" id="whoami" hidden>
+      <span class="whoami-av" id="whoamiAv" aria-hidden="true">?</span>
+      <span class="whoami-t">
+        <b id="whoamiName">-</b>
+        <em id="whoamiHow">-</em>
+      </span>
+      <button class="whoami-x" id="signOutBtn" type="button">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main id="top" hidden>
+
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-grid" aria-hidden="true"></div>
+  <div class="hero-shield" aria-hidden="true">
+    <svg viewBox="0 0 64 72">
+      <path d="M32 2 60 11v26c0 16-11 27-28 33C15 64 4 53 4 37V11z" fill="#E8292B"/>
+      <path d="M32 7 55 14.5v22.5c0 13-9 22-23 27.5C18 59 9 50 9 37V14.5z" fill="#FFC72C"/>
+      <path d="M32 16c4 0 7 2 8 6l5 26c1 5-1 9-6 9-4 0-6-3-7-7l-3-16-3 16c-1 4-3 7-7 7-5 0-7-4-6-9l5-26c1-4 4-6 8-6z" fill="#7A0C10"/>
+    </svg>
+  </div>
+  <div class="wrap hero-in">
+
+    <div class="hero-badge">
+      <span class="pill pill-a">OMEGA AI AGENTS</span>
+      <span class="pill">TRACK 01 · TWO AGENTS, ONE TRUTH</span>
+      <span class="pill">L-1 / L-2 / L-3</span>
+    </div>
+
+    <h1 class="hero-h1">
+      Two agents. One patient.<br />
+      <span class="grad">One reconcilable truth.</span>
+    </h1>
+
+    <p class="hero-pitch">
+      <b>One-line pitch:</b> a conservative agent and an aggressive agent read the same complex case file,
+      disagree in public, and negotiate a risk-mitigated treatment plan in a transcript you can
+      interrogate line by line — down to the atom.
+    </p>
+
+    <div class="hero-cta">
+      <button class="btn btn-hope" data-scroll="#console">Run the reconciliation →</button>
+      <a class="btn btn-ghost" href="#audit">Read a sealed audit trail</a>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat"><b id="statSteps">29</b><span>transcript steps, every one hash-chained</span></div>
+      <div class="stat"><b id="statRules">38</b><span>symbolic rules across two rule bases</span></div>
+      <div class="stat"><b>0</b><span>LLM calls, and 0 network calls, inside the engine</span></div>
+      <div class="stat"><b>6</b><span>protocol rounds, fully replayable</span></div>
+    </div>
+
+    <div class="hero-agents">
+      <div class="agentcard agentcard-a">
+        <div class="agentcard-hd"><span class="dot"></span>AGENT A · <b>ATLAS</b></div>
+        <div class="agentcard-role">Local Conservative Analyst</div>
+        <p>“If it is not in the local protocol, it is not a plan. It is a hypothesis — and hypotheses get logged, not administered.”</p>
+        <ul>
+          <li>Bound to LOCAL-PROTO-2026</li>
+          <li>Weights toxicity 0.26 · evidence 0.22</li>
+          <li>Innovation weight: <b>0.00</b></li>
+        </ul>
+      </div>
+      <div class="vs"><span>VS</span></div>
+      <div class="agentcard agentcard-b">
+        <div class="agentcard-hd"><span class="dot"></span>AGENT B · <b>NOVA</b></div>
+        <div class="agentcard-role">Global Innovation Analyst</div>
+        <p>“A 64% response rate in a biomarker-matched subgroup is evidence, even if a local protocol has not yet caught up.”</p>
+        <ul>
+          <li>Bound to GLOBAL-TRIALS-INDEX-2026</li>
+          <li>Weights efficacy 0.28 · innovation 0.24</li>
+          <li>Off-label admissible with procedure</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hero-truth">
+      <div class="ht-node">AGENT A<br /><small>says X</small></div>
+      <div class="ht-line"><span>negotiate · reason · log</span></div>
+      <div class="ht-node ht-main">ONE TRUTH<small>an answer both can live with</small></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================== VALUE STRIP ============================== -->
+<section class="strip">
+  <div class="wrap strip-in">
+    <div class="strip-item"><b>Hope</b><span>Every output is a plan a human can actually sign.</span></div>
+    <div class="strip-item"><b>Accountable</b><span>Zero black box. Click any step, get the rule and the premises.</span></div>
+    <div class="strip-item"><b>Symmetric</b><span>A reviewer constrains NOVA exactly as hard as ATLAS.</span></div>
+    <div class="strip-item"><b>Refuses</b><span>The system can say "no therapy." That is the feature.</span></div>
+  </div>
+</section>
+
+<!-- ============================== CONSOLE ============================== -->
+<section id="console" class="section section-dark">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Live build · the working alpha</span>
+      <h2>The reconciliation console</h2>
+      <p class="sec-lede">Pick a case, run the six-round protocol, then attack the result. Everything below is generated in your browser by the deterministic engine in <code>/assets/js</code> &mdash; the reasoning makes no API calls, uses no mock data, and no output is pre-baked. (Sign-in at the door is the one exception: it talks to Google. See the AI Disclosure.)</p>
+    </div>
+
+    <div class="console-grid">
+
+      <!-- ---- LEFT: case + controls ---- -->
+      <aside class="panel panel-ctl">
+        <div class="panel-hd">
+          <h3>Case file</h3>
+          <span class="panel-sub">synthetic</span>
+        </div>
+        <div class="case-tabs" id="caseTabs"></div>
+        <div class="case-body" id="caseBody"></div>
+
+        <div class="ctl-sep"></div>
+
+        <!-- Folded by default. The essential demo path is: pick a case, press Run.
+             Upload and reviewer adjudication are real features but they are not the
+             first thing a judge needs to see, and six stacked panels in a 312px
+             column read as clutter. Nothing is removed - it is one click away. -->
+        <details class="fold">
+          <summary class="fold-hd">
+            <span class="fold-chev" aria-hidden="true"></span>
+            <span class="fold-t">Your own case</span>
+            <span class="fold-sub">upload or paste</span>
+          </summary>
+          <div class="fold-bd">
+        <p class="ctl-note">Drop a <b>.json</b>, <b>.csv</b> or <b>.txt</b> case file, or paste a note. It enters the <i>same</i> protocol as the built-in cases — same rules, same gates, same hash chain. Fields the parser cannot read are reported back to you rather than guessed.</p>
+
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload a case file">
+          <input type="file" id="file" accept=".json,.csv,.tsv,.txt,.md,text/plain,application/json" hidden />
+          <div class="drop-ic" aria-hidden="true">
+            <svg viewBox="0 0 40 40" width="30" height="30"><path d="M20 27V9m0 0l-6 6m6-6l6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 25v4a3 3 0 003 3h18a3 3 0 003-3v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <b>Drop a case file</b>
+          <span>or click to choose · JSON / CSV / TXT</span>
+        </div>
+        <div class="ctl-row ctl-row-run" style="margin-top:8px">
+          <button class="btn btn-hope btn-sm" id="tplBtn">Blank case form (.txt)</button>
+        </div>
+        <p class="ctl-note" style="margin-top:7px">The <b>.txt</b> form opens in any text editor — fill it in and drop the same file back on the box above.</p>
+
+        <details class="paste">
+          <summary>Paste a note instead</summary>
+          <textarea id="pasteBox" class="input paste-box" rows="6" spellcheck="false"
+            placeholder="Diagnosis: Stage IIIB non-small-cell lung cancer&#10;Age: 71   Sex: male   ECOG: 2&#10;Renal: moderate&#10;Biomarkers: PD-L1 high, EGFR wild-type&#10;Medications: amiodarone, metformin&#10;History:&#10;Atrial fibrillation on a potent CYP3A4 inhibitor."></textarea>
+          <button class="btn btn-hope btn-sm btn-block" id="pasteBtn">Import pasted note</button>
+        </details>
+
+        <div id="ingestOut"></div>
+          </div>
+        </details>
+
+        <div class="ctl-sep"></div>
+
+        <!-- Folded by default for the same reason. Reviewer self-modification is
+             the second-strongest thing in the build and it has its own demo beat;
+             it does not belong in the first screenshot. -->
+        <details class="fold">
+          <summary class="fold-hd">
+            <span class="fold-chev" aria-hidden="true"></span>
+            <span class="fold-t">Adjudicator</span>
+            <span class="fold-sub">self-modification</span>
+          </summary>
+          <div class="fold-bd">
+        <p class="ctl-note">Anything you record here is written into <b>both</b> agents' rule bases, permanently, and reloaded on every later run. The diff is shown before you accept.</p>
+        <div class="adj-list" id="adjList"></div>
+
+        <div class="ctl-sep"></div>
+        <label class="ctl-label" for="vetoSel">Clinician veto of a therapy</label>
+        <div class="ctl-row">
+          <select id="vetoSel" class="input"></select>
+          <button class="btn btn-warn btn-sm" id="vetoBtn">Veto</button>
+        </div>
+        <p class="ctl-note" id="vetoNote">A named clinician veto becomes a permanent prohibition rule in both rule bases.</p>
+          </div>
+        </details>
+
+        <div class="ctl-sep"></div>
+        <div class="ctl-row ctl-row-run">
+          <button class="btn btn-hope btn-block" id="runBtn">▶ Run reconciliation</button>
+          <button class="btn btn-ghost btn-sm" id="resetMemBtn" title="Clear persisted memory and rule modifications">Reset memory</button>
+        </div>
+      </aside>
+
+      <!-- ---- CENTER: verdict + transcript ---- -->
+      <div class="console-main">
+
+        <div class="verdict" id="verdict" hidden>
+          <div class="verdict-top">
+            <div class="verdict-label">
+              <span class="verdict-kind" id="verdictKind">—</span>
+              <h3 id="verdictText">—</h3>
+              <p id="verdictNarr"></p>
+            </div>
+            <div class="verdict-conf">
+              <div class="conf-ring" id="confRing">
+                <svg viewBox="0 0 120 120" width="118" height="118">
+                  <circle cx="60" cy="60" r="52" class="cr-bg"/>
+                  <circle cx="60" cy="60" r="52" class="cr-fg" id="crFg"/>
+                </svg>
+                <div class="conf-val"><b id="confNum">—</b><span>confidence</span></div>
+              </div>
+              <div class="conf-note" id="confNote"></div>
+            </div>
+          </div>
+
+          <div class="verdict-agents" id="verdictAgents"></div>
+
+          <div class="plan" id="plan"></div>
+        </div>
+
+        <div class="panel panel-transcript">
+          <div class="panel-hd">
+            <h3>Reasoning transcript</h3>
+            <div class="panel-hd-r">
+              <span class="seal-chip" id="sealChip" hidden>sealed <code id="sealHash"></code></span>
+              <button class="btn btn-ghost btn-xs" id="speedBtn" title="Replay speed">1×</button>
+            </div>
+          </div>
+          <div class="rounds" id="roundNav"></div>
+          <div class="stream" id="stream" aria-live="polite">
+            <div class="stream-empty">
+              <div class="empty-mark" aria-hidden="true">
+                <svg viewBox="0 0 64 64" width="56" height="56"><circle cx="32" cy="32" r="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/><path d="M20 32h6l3-8 5 16 3-8h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <p><b>No run yet.</b> Select a case and press <i>Run reconciliation</i>.</p>
+              <p class="small">The protocol emits 29 steps across 6 rounds. Every step is hash-chained to the previous one.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- =================================================================
+         Analytics lives OUTSIDE .console-grid, on purpose.
+
+         The bug this fixes: `.panel-ctl` is `position:sticky`, and a sticky
+         element is confined to its CONTAINING BLOCK - not to its own grid row.
+         `.console-grid` contained both the case-file column AND this
+         full-width analytics row, so scrolling let the sticky panel travel the
+         full height of the grid and slide straight over the charts. A
+         `max-width:1240px` media query had been suppressing sticky below that
+         breakpoint, which hid the bug at narrow widths and left it live at
+         every width above it.
+
+         One row per grid container fixes it structurally, so sticky can come
+         back at all widths and no breakpoint has to remember this.
+         ================================================================= -->
+    <div class="console-analytics">
+      <aside class="panel panel-analytics">
+        <div class="panel-hd">
+          <h3>Trade-off analytics</h3>
+          <span class="panel-sub">efficacy vs toxicity</span>
+        </div>
+        <div class="chartbox" id="chartFrontier"><div class="chart-empty">Run a case to populate the frontier.</div></div>
+
+        <div class="ctl-sep"></div>
+        <div class="mini-hd">Scoreboard · per agent</div>
+        <div class="chartbox" id="chartScore"><div class="chart-empty">—</div></div>
+
+        <div class="ctl-sep"></div>
+        <div class="mini-hd">Weight vectors</div>
+        <div class="chartbox" id="chartWeights"><div class="chart-empty">—</div></div>
+
+        <div class="ctl-sep"></div>
+        <div class="mini-hd">Confidence arithmetic</div>
+        <div class="chartbox" id="chartConf"><div class="chart-empty">—</div></div>
+      </aside>
+    </div>
+
+    <!-- ---- ask the agents ---- -->
+    <div class="chat" id="chat">
+      <div class="panel-hd">
+        <h3>Ask the agents</h3>
+        <div class="panel-hd-r">
+          <span class="chat-badge">no language model</span>
+          <button class="btn btn-ghost btn-xs" id="chatClear">New chat</button>
+        </div>
+      </div>
+
+      <div class="chat-who">
+        <div class="cw cw-a">
+          <span class="cw-av">A</span>
+          <span class="cw-n"><b>ATLAS</b> · The Safety Agent</span>
+          <span class="cw-d">Proven evidence, protocol, harm avoidance</span>
+        </div>
+        <div class="cw cw-b">
+          <span class="cw-av">B</span>
+          <span class="cw-n"><b>NOVA</b> · The New Ideas Agent</span>
+          <span class="cw-d">New research, with the evidence grade stated every time</span>
+        </div>
+      </div>
+
+      <div class="chat-log" id="chatLog" aria-live="polite"></div>
+
+      <div class="chat-chips" id="chatChips"></div>
+
+      <form class="chat-input" id="chatForm">
+        <input id="chatBox" class="input" type="text" autocomplete="off"
+          placeholder="Ask ATLAS and NOVA a question — or press Ask them to conclude" />
+        <button class="btn btn-hope btn-sm" type="submit" id="chatSend">Ask</button>
+        <button class="btn btn-warn btn-sm" type="button" id="concludeBtn">Ask them to conclude</button>
+      </form>
+      <p class="chat-note">Every reply is composed by the same rule bases that produce the transcript, and cites what produced it. They will refuse a question they cannot support from the evidence — that refusal is the feature, not a gap.</p>
+    </div>
+
+    <!-- ---- audit trail ---- -->
+    <div class="audit" id="audit">
+      <div class="panel-hd">
+        <h3>Sealed audit trail</h3>
+        <div class="panel-hd-r">
+          <button class="btn btn-ghost btn-xs" id="verifyBtn">Verify chain</button>
+          <button class="btn btn-hope btn-xs" id="dlMd">↓ .md</button>
+          <button class="btn btn-ghost btn-xs" id="dlJson">↓ .json</button>
+          <button class="btn btn-ghost btn-xs" id="copyBtn">Copy</button>
+        </div>
+      </div>
+      <div class="audit-body" id="auditBody">
+        <p class="muted">The export is the deliverable the track asks for: a sample reasoning transcript a reviewer can follow without the app running.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== PROTOCOL ============================== -->
+<section id="protocol" class="section">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">The procedure</span>
+      <h2>Six rounds, one reconcilable answer</h2>
+      <p class="sec-lede">The reconciliation is a protocol, not a prompt. Each round has a defined entry condition, a defined output, and an append-only record. Replay it as often as you like — it is deterministic.</p>
+    </div>
+
+    <div class="rounds-map" id="roundsMap"></div>
+
+    <div class="proto-grid">
+      <div class="proto-card">
+        <h4><span class="pc-n">01</span> Independent analysis</h4>
+        <p>Each agent runs its own forward-chaining reasoner over the same fact base and produces a ranked leaderboard. They do not see each other's output.</p>
+        <p class="pc-note">Disagreement here is a consequence of <b>different rules and weights</b>, not different data.</p>
+      </div>
+      <div class="proto-card">
+        <h4><span class="pc-n">02</span> Cross-examination</h4>
+        <p>Each agent attacks the other's pick with a cited reason: protocol, evidence, population, organ, toxicity, or a counterfactual on the weight vector.</p>
+        <p class="pc-note">Every challenge carries the citation it rests on. Opinion without provenance is not accepted.</p>
+      </div>
+      <div class="proto-card">
+        <h4><span class="pc-n">03</span> Sensitivity &amp; frontier</h4>
+        <p>Each agent's pick is re-scored under the <i>other's</i> weights to expose where the disagreement is a factual dispute and where it is a policy choice.</p>
+        <p class="pc-note">A log-pooled compromise is then computed — and it is shown, including the criteria it cannot pool.</p>
+      </div>
+      <div class="proto-card">
+        <h4><span class="pc-n">04</span> Concession exchange</h4>
+        <p>Each agent states the minimum set of conditions under which it would accept the other's therapy. A satisfiability test runs the composite plan against every one.</p>
+        <p class="pc-note">Unmet conditions are carried into the escalation. They are never quietly dropped.</p>
+      </div>
+      <div class="proto-card">
+        <h4><span class="pc-n">05</span> Reconciliation</h4>
+        <p>The protocol produces exactly one of four shapes: consensus, <b>guarded adoption</b> (innovation accepted only inside the conservative agent's scaffolding), a documented refusal, or escalation.</p>
+        <p class="pc-note">An explicit trade-off ledger is emitted: position 1, position 2, resolution.</p>
+      </div>
+      <div class="proto-card proto-card-warn">
+        <h4><span class="pc-n">06</span> Safety overlay &amp; seal</h4>
+        <p>Hard gates are re-evaluated <i>after</i> the negotiation, then toxicity ceilings, consent obligations and stop-rules. The transcript is sealed with a SHA-256 chain.</p>
+        <p class="pc-note">Disagreement is permitted to be total. It is never permitted to be permissive.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== ARCHITECTURE ============================== -->
+<section id="architecture" class="section section-alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Why it is auditable</span>
+      <h2>Four Omega capabilities, used as the feature</h2>
+      <p class="sec-lede">The track asks for MeTTa's identity — reasoning, self-modification, memory, symbolic logic — to be the product, not the homework. Each of these is load-bearing. Remove one and the demo does not degrade; it stops working.</p>
+    </div>
+
+    <div class="arch-grid">
+      <article class="arch" id="arch-reason">
+        <div class="arch-ic" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="34" height="34"><circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="20" cy="20" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="20" cy="4" r="2.6"/><circle cx="34" cy="27" r="2.6"/><circle cx="6" cy="27" r="2.6"/></svg>
+        </div>
+        <h3>Auditable reasoning</h3>
+        <p>A forward-chaining reasoner over MeTTa-style atoms. Every derived atom stores the rule that fired it and the exact premises consumed.</p>
+        <div class="arch-try">
+          <p><b>Try it:</b> click any transcript step, then <i>Show provenance</i>. You get the rule id, its premises, and the chain back to raw case facts.</p>
+        </div>
+      </article>
+
+      <article class="arch" id="arch-mod">
+        <div class="arch-ic" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="34" height="34"><path d="M6 14h20M18 8l6 6-6 6M34 26H14M22 20l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Self-modification</h3>
+        <p>A reviewer input is compiled into <b>new hard rules injected symmetrically</b> into both agents. The literal before/after rule diff is displayed line by line.</p>
+        <div class="arch-try">
+          <p><b>Try it:</b> veto a therapy in the console. Watch <code>Δ rule base</code> gain a rule, then watch the verdict change.</p>
+        </div>
+      </article>
+
+      <article class="arch" id="arch-mem">
+        <div class="arch-ic" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="34" height="34"><ellipse cx="20" cy="11" rx="13" ry="5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 11v18c0 2.8 5.8 5 13 5s13-2.2 13-5V11" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 20c0 2.8 5.8 5 13 5s13-2.2 13-5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        </div>
+        <h3>Stateful memory</h3>
+        <p>Adjudications persist to <code>localStorage</code> and reload as precedent, signed into the seal. Run a case twice and the second run cites the first.</p>
+        <div class="arch-try">
+          <p><b>Try it:</b> run CV-2291, switch to CV-3310, come back. The precedent is recalled and the confidence term shows it.</p>
+        </div>
+      </article>
+
+      <article class="arch" id="arch-sym">
+        <div class="arch-ic" aria-hidden="true">
+          <svg viewBox="0 0 40 40" width="34" height="34"><path d="M20 6v28M9 13h22M9 27h22" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M20 6l-4 4h8zM20 34l-4-4h8z" fill="currentColor"/></svg>
+        </div>
+        <h3>Symmetric constraint</h3>
+        <p>The four hard rules are structurally identical in both agents. Whatever the agents disagree about, neither can trade away an absolute contraindication.</p>
+        <div class="arch-try">
+          <p><b>Governance claim:</b> a reviewer who constrains the innovative agent is constraining the cautious one in the same breath. Asymmetric control is not a safety feature.</p>
+        </div>
+      </article>
+    </div>
+
+    <div class="arch-legend">
+      <h4>Δ rule base</h4>
+      <div id="diffHost" class="diff-host">
+        <p class="muted">No self-modification recorded yet. Record an adjudication on the left to compile a live rule diff.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== TRACK FIT ============================== -->
+<section id="track" class="section">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Procedure compliance</span>
+      <h2>How this build answers the track</h2>
+      <p class="sec-lede">Omega AI Agents · Track 01 — <b>Two Agents, One Truth</b>. Two agents that have to reconcile disagreeing beliefs about the same fact, run a small negotiation protocol, and explain how they got to an answer both can live with.</p>
+    </div>
+
+    <div class="fit-grid">
+      <div class="fit">
+        <span class="fit-n">01</span>
+        <h4>A strong one-line pitch</h4>
+        <p class="fit-q">“Two agents. One patient. One reconcilable truth — in a transcript you can interrogate down to the atom.”</p>
+        <p class="fit-a">Lives in the hero, in the README, and in the first ten seconds of the demo video.</p>
+      </div>
+      <div class="fit">
+        <span class="fit-n">02</span>
+        <h4>Scoped to one clear behaviour</h4>
+        <p class="fit-q">One small agent, one clear behaviour: <i>reconcile a disagreement and prove the reconciliation.</i></p>
+        <p class="fit-a">One protocol, one console, one export. No platform, no dashboard sprawl, no second feature competing for attention.</p>
+      </div>
+      <div class="fit">
+        <span class="fit-n">03</span>
+        <h4>MeTTa identity as the feature</h4>
+        <p class="fit-q">Reasoning · self-modification · memory · symbolic logic — each one is load-bearing, not decorative.</p>
+        <p class="fit-a">See <a href="#architecture">the four capabilities</a>: deleting any one of them breaks the product.</p>
+      </div>
+      <div class="fit fit-wide">
+        <span class="fit-n">04</span>
+        <h4>Fun, playable, multiplayer-feeling</h4>
+        <p class="fit-q">Two small agents visibly arguing it out — with a narrator, a scoreboard and a referee.</p>
+        <p class="fit-a">The console is a live arena. ATLAS and NOVA get colour, voice, creed and leaderboards. You can root for one, and the protocol will still overrule you when the gate says so. The disagreement is the entertainment; the reconciliation is the point.</p>
+      </div>
+    </div>
+
+    <div class="deliv">
+      <h3>Deliverables &amp; judging</h3>
+      <div class="deliv-grid">
+        <div class="deliv-card">
+          <b>Working repository</b>
+          <p>Shared on GitHub. Zero dependencies, zero build step — <code>open index.html</code> or <code>npm start</code>.</p>
+        </div>
+        <div class="deliv-card">
+          <b>Short written documentation</b>
+          <p>README: problem, solution, architecture, the AI Disclosure statement, and what we'd build next.</p>
+        </div>
+        <div class="deliv-card">
+          <b>Sample reasoning transcript</b>
+          <p>Exportable as Markdown and JSON. Hash-chained, self-verifying, readable without the app.</p>
+        </div>
+        <div class="deliv-card">
+          <b>3-minute demonstration</b>
+          <p>Three cases, one veto, one rule diff, one refusal. Script in the README.</p>
+        </div>
+      </div>
+
+      <div class="crit">
+        <div class="crit-col">
+          <h5>Omega track criteria</h5>
+          <ul class="crit-list">
+            <li><b>30%</b> Innovation &amp; Creativity <span>A negotiation protocol where the safety gate wins by design, and the compromise mathematically cannot manufacture a value one agent refuses to hold.</span></li>
+            <li><b>30%</b> Technical Implementation <span>A real forward-chaining reasoner, a symmetric rule-injection layer, hash chaining, persistent memory — all hand-written, no libraries.</span></li>
+            <li><b>20%</b> Sustainability Impact <span>Audit trails for scarce clinical decision capacity; a governance pattern transferable to any high-stakes domain.</span></li>
+            <li><b>20%</b> Documentation &amp; Presentation <span>Exported transcript readable by a non-technical reviewer. The export <i>is</i> the documentation.</span></li>
+          </ul>
+        </div>
+        <div class="crit-col">
+          <h5>All-track judging</h5>
+          <ul class="crit-list">
+            <li><b>30%</b> Technical execution <span>Working alpha, not an experiment. Ships with three cases and a live refusal path.</span></li>
+            <li><b>25%</b> Clarity of the demo <span>One screen, one button, one verdict. The transcript streams like a conversation.</span></li>
+            <li><b>25%</b> Fit to track <span>Textbook "Two Agents, One Truth", built on the neural-symbolic identity of Omega.</span></li>
+            <li><b>20%</b> Collaboration &amp; documentation <span>Every commit and every rule is attributable. <code>AI Disclosure</code> in the README.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SCORING ============================== -->
+<section id="score" class="section section-dark">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Confidence, shown as arithmetic</span>
+      <h2>Never assert a number. Show the sum.</h2>
+      <p class="sec-lede">Every verdict carries a confidence figure and the terms that produced it. Below 70% the system refuses to recommend autonomously and escalates. Above 94% it refuses on principle — no autonomous system should be more certain than that.</p>
+    </div>
+
+    <div class="score-grid">
+      <div class="score-card">
+        <div class="score-cap cap-hope">Below 70%</div>
+        <h4>Escalate, do not guess</h4>
+        <p>The protocol returns no therapy. The transcript becomes the deliverable: a clinician receives the full disagreement, the thresholds, and the unmet conditions.</p>
+      </div>
+      <div class="score-card">
+        <div class="score-cap cap-calm">70 – 78%</div>
+        <h4>Consensus with obligations</h4>
+        <p>A plan is returned, but capped where an off-label component is present. Consent, MDT sign-off, published stop-rules and a reachable fallback all attach.</p>
+      </div>
+      <div class="score-card">
+        <div class="score-cap cap-warn">78 – 94%</div>
+        <h4>Plan of record</h4>
+        <p>Both agents can live with it. First assessment is pre-registered with a switch trigger, so the plan stays reversible at the first checkpoint.</p>
+      </div>
+      <div class="score-card">
+        <div class="score-cap cap-stop">Hard stop</div>
+        <h4>The gate is not negotiable</h4>
+        <p>Contraindications are evaluated <i>after</i> the negotiation, by a layer neither agent can address. Refusing to treat is a success state, not a failure state.</p>
+      </div>
+    </div>
+
+    <div class="quote-strip">
+      <blockquote>
+        <p>A second opinion you cannot interrogate is not a second opinion. It is a second opinion you have to trust — which is exactly where you started.</p>
+        <cite>— the problem this build is actually about</cite>
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== SUBMISSION ============================== -->
+<section id="submit" class="section">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Submit &amp; schedule</span>
+      <h2>Handing it in</h2>
+      <p class="sec-lede">SingularityNET × Omega × BASIX.Market · SJIT Chennai + Kenyatta University of Engineering, virtual · 30 Sept – 2 Oct 2026.</p>
+    </div>
+
+    <div class="sub-grid">
+      <div class="sub-card">
+        <h4>Submission requirements</h4>
+        <ul class="tick">
+          <li>Working code repository, shared on GitHub with BASIX.MARKET</li>
+          <li>Short written documentation — what it does, how it works, what's next</li>
+          <li>3-minute maximum video — explain, demo, state the next step</li>
+          <li>Sample reasoning transcript / audit trail</li>
+          <li>AI Disclosure statement in the README</li>
+        </ul>
+        <p class="sub-note"><b>Hard deadline — IST 11:59 PM, 2 October.</b><br />24HR SJIT + Solo Hackers: 10:30 AM IST, 1 October.</p>
+      </div>
+      <div class="sub-card">
+        <h4>What we'd build next</h4>
+        <ul class="tick tick-fut">
+          <li>Move the rule bases onto a real MeTTa/Omega runtime instead of the in-browser engine</li>
+          <li>Add a third agent: a sceptical pharmacovigilance reader that challenges toxicity claims only</li>
+          <li>Longitudinal memory across a patient episode, not a single case file</li>
+          <li>Prospective evaluation against a real MDT on retrospective cases, measuring how often the gate overturns the agents</li>
+          <li>Export adapter for hospital EHR review queues</li>
+        </ul>
+        <p class="sub-note">The honest answer to "would a hospital use this?" is <b>not yet, and that is the point</b> — the first thing to earn trust in a clinical setting is an audit trail nobody has to take on faith.</p>
+      </div>
+      <div class="sub-card">
+        <h4>Team &amp; format</h4>
+        <ul class="tick">
+          <li>3–4 members, one track, mixed SJIT + KU campus teams welcome</li>
+          <li>Static alpha &mdash; no backend, no build step. The <i>engine</i> makes no network calls; Google sign-in is the only outbound request</li>
+          <li>Runs offline from <code>file://</code> in demo mode, which is how it will be filmed on a campus laptop</li>
+        </ul>
+        <p class="sub-note">The engine's independence from the network means the demo cannot fail on venue wifi. Given the track is filmed live, that is a feature. The one caveat, stated plainly: signing in does contact <code>accounts.google.com</code>, and the token is verified by Google's JS client rather than by a server we control. Both are disclosed in README &sect;11.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="footer">
+  <div class="wrap footer-in">
+    <div class="footer-brand">
+      <b>MED-VERDICT</b>
+      <span>AI Clinical Second Opinion Reconciler</span>
+    </div>
+    <div class="footer-cols">
+      <div>
+        <h6>Track</h6>
+        <p>Omega AI Agents L-1/2/3 · Track 01 — Two Agents, One Truth</p>
+      </div>
+      <div>
+        <h6>Built for</h6>
+        <p>SingularityNET × Omega × BASIX.Market Hackathon · SJIT &amp; Kenyatta University · 2026</p>
+      </div>
+      <div>
+        <h6>Disclaimer</h6>
+        <p>Research prototype. Synthetic data only. Not a medical device, not clinical advice, not for patient care.</p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================== PROVENANCE DRAWER ============================== -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer-scrim" data-close></div>
+  <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="drawer-hd">
+      <div>
+        <span class="drawer-kicker" id="drawerKicker">Provenance</span>
+        <h3 id="drawerTitle">—</h3>
+      </div>
+      <button class="drawer-x" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/js/sha256.js"></script>
+<script src="assets/js/auth.js"></script>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/metta.js"></script>
+<script src="assets/js/kb.js"></script>
+<script src="assets/js/ingest.js"></script>
+<script src="assets/js/memory.js"></script>
+<script src="assets/js/protocol.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/audit.js"></script>
+<script src="assets/js/chat.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

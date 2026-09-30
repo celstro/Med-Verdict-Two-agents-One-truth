@@ -1,0 +1,26 @@
+{
+  "name": "med-verdict",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Med-Verdict — AI Clinical Second Opinion Reconciler. Two clinical AI agents reconcile a disagreement about a complex patient case and emit a hash-chained, human-auditable reasoning transcript.",
+  "track": "SingularityNET x Omega x BASIX.Market Hackathon — Omega AI Agents L-1/2/3, Track 01: Two Agents, One Truth",
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node test-engine.cjs && node test-ingest.cjs && node test-chat.cjs && node test-auth.cjs && node test-boot.cjs",
+    "test:engine": "node test-engine.cjs",
+    "test:ingest": "node test-ingest.cjs",
+    "test:chat": "node test-chat.cjs",
+    "test:auth": "node test-auth.cjs",
+    "test:boot": "node test-boot.cjs",
+    "audit": "node tools/export-audit.cjs"
+  },
+  "keywords": [
+    "omega", "metta", "singularitynet", "basix",
+    "neural-symbolic", "multi-agent", "auditable-reasoning",
+    "clinical-decision-support", "ai-governance"
+  ],
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "devDependencies": {}
+}
